@@ -12,7 +12,7 @@ The module implementation lives at `nix/module.nix`.
 
 {
   imports = [
-    (inputs.custos + "/nix/module.nix")
+    inputs.custos.nixosModules.default
   ];
 
   services.custos = {
