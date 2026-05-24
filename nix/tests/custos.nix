@@ -15,19 +15,21 @@ pkgs.testers.nixosTest {
 
       services.custos = {
         enable = true;
-        mode = "enforce";
-        policyPath = "/var/lib/custos-test-policy.toml";
-        sysfsRoot = "/var/lib/custos-test-sys";
         controlUsers = [ "alice" ];
-        controllers.authorizedDefault = "keep";
+        config = {
+          mode = "enforce";
+          policy_path = "/var/lib/custos-test-policy.toml";
+          sysfs_root = "/var/lib/custos-test-sys";
+          controllers.authorized_default = "keep";
+        };
 
-        # The mutable policyPath above is populated by the test script. This
+        # The mutable policy path above is populated by the test script. This
         # static allow rule keeps the module's first-run assertion honest.
         policy.rules = [
           {
             name = "module safety allow";
             action = "allow";
-            match.vendorId = "ffff";
+            match.vendor_id = "ffff";
           }
         ];
       };

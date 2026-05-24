@@ -21,15 +21,28 @@ The module implementation lives at `nix/module.nix`.
     # Users which are allowed to control the daemon.
     controlUsers = [ "alice" ];
 
+    config = {
+      mode = "enforce";
+      policy_path = "/etc/custos/policy.toml";
+      socket_path = "/run/custos/control.sock";
+      sysfs_root = "/sys";
+      unsafe_allow_empty_policy = false;
+      default_action = "block";
+      controllers = {
+        authorized_default = "none";
+        restore_on_shutdown = false;
+      };
+    };
+
     policy.rules = [
       {
         name = "built-in keyboard";
         action = "allow";
         match = {
-          vendorId = "6767";
-          productId = "1337";
-          connectType = "hardwired";
-          isHub = false;
+          vendor_id = "6767";
+          product_id = "1337";
+          connect_type = "hardwired";
+          is_hub = false;
           interfaces.any = [ "03:*:*" ];
         };
       }
@@ -40,8 +53,8 @@ The module implementation lives at `nix/module.nix`.
 
 The module:
 
-- Generates `/etc/custos/config.toml` from `services.custos` daemon settings.
-- Generates `/etc/custos/policy.toml` from `services.custos.policy`.
+- Generates `/etc/custos/config.toml` directly from `services.custos.config`.
+- Generates `/etc/custos/policy.toml` directly from `services.custos.policy`.
 - Adds the `custos` package to `environment.systemPackages`.
 - Creates a control group, default `custos`.
 - Adds `services.custos.controlUsers` to that group.
@@ -56,30 +69,21 @@ configured control group can run daemon-backed CLI commands without root.
 
 ### Module Options
 
-| Option                                          | Default                      | Meaning                                                                           |
-| ----------------------------------------------- | ---------------------------- | --------------------------------------------------------------------------------- |
-| `services.custos.enable`                        | `false`                      | Enable the daemon and generated files.                                            |
-| `services.custos.package`                       | `null`                       | Package to run. Must be set by direct module users.                               |
-| `services.custos.mode`                          | `"enforce"`                  | `"enforce"` writes sysfs authorization; `"dry-run"` logs/previews only.           |
-| `services.custos.policyPath`                    | `"/etc/custos/policy.toml"`  | Policy TOML path written into the daemon config.                                  |
-| `services.custos.socketPath`                    | `"/run/custos/control.sock"` | Unix socket used by the CLI.                                                      |
-| `services.custos.sysfsRoot`                     | `"/sys"`                     | sysfs root used for USB scanning.                                                 |
-| `services.custos.unsafeAllowEmptyPolicy`        | `false`                      | Permit enforcing startup without an endpoint allow rule.                          |
-| `services.custos.defaultAction`                 | `"block"`                    | Fallback default if the policy file is absent and startup is otherwise permitted. |
-| `services.custos.group`                         | `"custos"`                   | Group that owns the control socket directory.                                     |
-| `services.custos.controlUsers`                  | `[ ]`                        | Users added to the control group.                                                 |
-| `services.custos.controllers.authorizedDefault` | `"none"`                     | Desired controller `authorized_default`: `"keep"`, `"none"`, or `"all"`.          |
-| `services.custos.controllers.restoreOnShutdown` | `false`                      | Restore controller `authorized_default` values on daemon exit.                    |
-| `services.custos.policy.default`                | `"block"`                    | Policy default action when no rule matches.                                       |
-| `services.custos.policy.rules`                  | `[ ]`                        | Ordered policy rules. First match wins.                                           |
+| Option                         | Default                      | Meaning                                                              |
+| ------------------------------ | ---------------------------- | -------------------------------------------------------------------- |
+| `services.custos.enable`       | `false`                      | Enable the daemon and generated files.                               |
+| `services.custos.package`      | flake package                | Package to run.                                                      |
+| `services.custos.config`       | daemon defaults              | Raw TOML attrset written to `/etc/custos/config.toml`.                |
+| `services.custos.policy`       | `{ default = "block"; ... }` | Raw TOML attrset written to `/etc/custos/policy.toml`.                |
+| `services.custos.group`        | `"custos"`                   | Group that owns the control socket directory.                        |
+| `services.custos.controlUsers` | `[ ]`                        | Users added to the control group.                                    |
 
-The module keeps policy rendering simple and leaves semantic policy validation
-to the `custos` binary at runtime. Option types still constrain obvious shape
-errors, but lockout checks and empty-matcher checks are handled by
-`custos validate` and daemon startup:
+The module does not try to semantically validate policies at evaluation time.
+It only renders Nix attrsets to TOML; lockout checks and empty-matcher checks
+are handled by `custos validate` and daemon startup:
 
 - In enforce mode, startup requires at least one `allow` rule that can match a
-  non-hub endpoint, unless `unsafeAllowEmptyPolicy = true`.
+  non-hub endpoint, unless `unsafe_allow_empty_policy = true`.
 - Every policy rule must have at least one match field.
 
 ## Commands

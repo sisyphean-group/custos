@@ -7,6 +7,8 @@
 
 let
   inherit (lib)
+    getExe
+    literalExpression
     mkEnableOption
     mkIf
     mkOption
@@ -14,211 +16,91 @@ let
     ;
 
   cfg = config.services.custos;
-  socketDir = dirOf cfg.socketPath;
-  usbDevicesPath = "${cfg.sysfsRoot}/bus/usb/devices";
-  tomlFormat = pkgs.formats.toml { };
+  toml = pkgs.formats.toml { };
 
-  compactAttrs =
-    value:
-    if builtins.isAttrs value then
-      lib.filterAttrs (_: v: v != null) (lib.mapAttrs (_: v: compactAttrs v) value)
-    else if builtins.isList value then
-      map compactAttrs value
-    else
-      value;
-
-  renderMatch =
-    match:
-    compactAttrs {
-      vendor_id = match.vendorId;
-      product_id = match.productId;
-      serial = match.serial;
-      product_name = match.productName;
-      connect_type = match.connectType;
-      port_path = match.portPath;
-      descriptor_hash = match.descriptorHash;
-      is_hub = match.isHub;
-      interfaces = {
-        any = match.interfaces.any;
-        all = match.interfaces.all;
-      };
-    };
-
-  renderRule =
-    rule:
-    compactAttrs {
-      inherit (rule) name action;
-      match = renderMatch rule.match;
-    };
-
-  configFile = tomlFormat.generate "custos-config.toml" (compactAttrs {
-    mode = cfg.mode;
-    policy_path = cfg.policyPath;
-    socket_path = cfg.socketPath;
-    sysfs_root = cfg.sysfsRoot;
-    unsafe_allow_empty_policy = cfg.unsafeAllowEmptyPolicy;
-    default_action = cfg.defaultAction;
+  defaultConfig = {
+    mode = "enforce";
+    policy_path = "/etc/custos/policy.toml";
+    socket_path = "/run/custos/control.sock";
+    sysfs_root = "/sys";
+    unsafe_allow_empty_policy = false;
+    default_action = "block";
     controllers = {
-      authorized_default = cfg.controllers.authorizedDefault;
-      restore_on_shutdown = cfg.controllers.restoreOnShutdown;
+      authorized_default = "none";
+      restore_on_shutdown = false;
     };
-  });
-
-  policyFile = tomlFormat.generate "custos-policy.toml" {
-    default = cfg.policy.default;
-    rules = map renderRule cfg.policy.rules;
   };
 
-  matcherOptions =
-    { ... }:
-    {
-      options = {
-        vendorId = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "USB vendor ID matcher as four hexadecimal characters.";
-        };
+  defaultPolicy = {
+    default = "block";
+    rules = [ ];
+  };
 
-        productId = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "USB product ID matcher as four hexadecimal characters.";
-        };
-
-        serial = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "USB serial string matcher.";
-        };
-
-        productName = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "USB product string matcher.";
-        };
-
-        connectType = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "Kernel-reported USB port connect_type matcher.";
-        };
-
-        portPath = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "USB sysfs port path matcher, such as 1-2 or 3-1.4.";
-        };
-
-        descriptorHash = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "Base64-encoded SHA-256 hash of the USB descriptors file.";
-        };
-
-        isHub = mkOption {
-          type = types.nullOr types.bool;
-          default = null;
-          description = "Match USB hubs. By default, hubs pass through default-block policy.";
-        };
-
-        interfaces = mkOption {
-          type = types.submodule {
-            options = {
-              any = mkOption {
-                type = types.listOf types.str;
-                default = [ ];
-                description = "Interface patterns where at least one must match.";
-              };
-
-              all = mkOption {
-                type = types.listOf types.str;
-                default = [ ];
-                description = "Interface patterns where every listed pattern must match.";
-              };
-            };
-          };
-          default = { };
-          description = "USB interface class/subclass/protocol matchers.";
-        };
-      };
-    };
-
-  ruleOptions =
-    { ... }:
-    {
-      options = {
-        name = mkOption {
-          type = types.str;
-          description = "Human-readable rule name.";
-        };
-
-        action = mkOption {
-          type = types.enum [
-            "allow"
-            "block"
-          ];
-          description = "Rule action.";
-        };
-
-        match = mkOption {
-          type = types.submodule matcherOptions;
-          default = { };
-          description = "Device matcher for this rule.";
-        };
-      };
-    };
+  socketPath = cfg.config.socket_path or defaultConfig.socket_path;
+  sysfsRoot = cfg.config.sysfs_root or defaultConfig.sysfs_root;
+  socketDir = dirOf socketPath;
+  usbDevicesPath = "${sysfsRoot}/bus/usb/devices";
 in
 {
   options.services.custos = {
     enable = mkEnableOption "the custos USB authorization daemon";
 
     package = mkOption {
-      type = types.nullOr types.package;
-      default = null;
-      defaultText = lib.literalExpression "self.packages.\${system}.custos";
+      type = types.package;
+      default = pkgs.callPackage ./package.nix { };
+      defaultText = literalExpression "pkgs.callPackage ./nix/package.nix { }";
       description = "custos package to run.";
     };
 
-    mode = mkOption {
-      type = types.enum [
-        "enforce"
-        "dry-run"
-      ];
-      default = "enforce";
-      description = "Daemon mode.";
+    config = mkOption {
+      type = toml.type;
+      default = defaultConfig;
+      description = ''
+        Custos daemon configuration written directly to
+        /etc/custos/config.toml. Use the same snake_case field names as the
+        TOML file.
+      '';
+      example = literalExpression ''
+        {
+          mode = "enforce";
+          policy_path = "/etc/custos/policy.toml";
+          socket_path = "/run/custos/control.sock";
+          sysfs_root = "/sys";
+          unsafe_allow_empty_policy = false;
+          default_action = "block";
+          controllers = {
+            authorized_default = "none";
+            restore_on_shutdown = false;
+          };
+        }
+      '';
     };
 
-    policyPath = mkOption {
-      type = types.str;
-      default = "/etc/custos/policy.toml";
-      description = "Path to the generated policy TOML.";
-    };
-
-    socketPath = mkOption {
-      type = types.str;
-      default = "/run/custos/control.sock";
-      description = "Unix domain socket used by the custos CLI.";
-    };
-
-    sysfsRoot = mkOption {
-      type = types.str;
-      default = "/sys";
-      description = "Root path for sysfs scanning.";
-    };
-
-    unsafeAllowEmptyPolicy = mkOption {
-      type = types.bool;
-      default = false;
-      description = "Allow enforcing startup with an empty policy.";
-    };
-
-    defaultAction = mkOption {
-      type = types.enum [
-        "allow"
-        "block"
-      ];
-      default = "block";
-      description = "Default action used when no rule matches.";
+    policy = mkOption {
+      type = toml.type;
+      default = defaultPolicy;
+      description = ''
+        Custos policy written directly to /etc/custos/policy.toml. Use the
+        same snake_case field names as the TOML file.
+      '';
+      example = literalExpression ''
+        {
+          default = "block";
+          rules = [
+            {
+              name = "built-in keyboard";
+              action = "allow";
+              match = {
+                vendor_id = "feed";
+                product_id = "1307";
+                connect_type = "hardwired";
+                is_hub = false;
+                interfaces.any = [ "03:*:*" ];
+              };
+            }
+          ];
+        }
+      '';
     };
 
     group = mkOption {
@@ -238,61 +120,16 @@ in
         "alice"
       ];
     };
-
-    controllers = {
-      authorizedDefault = mkOption {
-        type = types.enum [
-          "keep"
-          "none"
-          "all"
-        ];
-        default = "none";
-        description = "Controller authorized_default handling policy.";
-      };
-
-      restoreOnShutdown = mkOption {
-        type = types.bool;
-        default = false;
-        description = "Whether controller authorization state should be restored on shutdown.";
-      };
-    };
-
-    policy = {
-      default = mkOption {
-        type = types.enum [
-          "allow"
-          "block"
-        ];
-        default = "block";
-        description = "Policy default action.";
-      };
-
-      rules = mkOption {
-        type = types.listOf (types.submodule ruleOptions);
-        default = [ ];
-        description = "Ordered custos policy rules. First match wins.";
-        example = [
-          {
-            name = "built-in keyboard";
-            action = "allow";
-            match = {
-              vendorId = "feed";
-              productId = "1307";
-              connectType = "hardwired";
-              interfaces.any = [ "03:*:*" ];
-            };
-          }
-        ];
-      };
-    };
   };
 
   config = mkIf cfg.enable {
     users.groups.${cfg.group}.members = cfg.controlUsers;
 
     environment.systemPackages = [ cfg.package ];
-    environment.etc."custos/config.toml".source = configFile;
-    environment.etc."custos/policy.toml".source = policyFile;
+    environment.etc = {
+      "custos/config.toml".source = toml.generate "custos-config.toml" cfg.config;
+      "custos/policy.toml".source = toml.generate "custos-policy.toml" cfg.policy;
+    };
 
     systemd.tmpfiles.rules = [
       "d ${socketDir} 2770 root ${cfg.group} - -"
@@ -309,7 +146,7 @@ in
       serviceConfig = {
         Type = "simple";
         ExecStartPre = "${pkgs.coreutils}/bin/install -d -m 2770 -o root -g ${cfg.group} ${socketDir}";
-        ExecStart = "${lib.getExe cfg.package} --daemon --config /etc/custos/config.toml";
+        ExecStart = "${getExe cfg.package} --daemon --config /etc/custos/config.toml";
         Restart = "on-failure";
         RestartSec = "1s";
         PrivateTmp = true;
