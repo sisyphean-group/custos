@@ -1,0 +1,12 @@
+# Example custos daemon configuration.
+
+mode = "enforce"
+policy_path = "/etc/custos/policy.toml"
+socket_path = "/run/custos/control.sock"
+sysfs_root = "/sys"
+unsafe_allow_empty_policy = false
+default_action = "block"
+
+[controllers]
+authorized_default = "none"
+restore_on_shutdown = false

@@ -1,0 +1,28 @@
+# Example custos policy. Generate a host-specific starting policy with:
+#   custos generate-policy > /etc/custos/policy.toml
+
+default = "block"
+
+[[rules]]
+name = "built-in keyboard"
+action = "allow"
+
+[rules.match]
+vendor_id = "feed"
+product_id = "1307"
+connect_type = "hardwired"
+descriptor_hash = "base64-sha256-descriptor-hash"
+is_hub = false
+
+[rules.match.interfaces]
+any = ["03:*:*"]
+
+# Hubs pass through a default-block policy so downstream devices remain visible.
+# Add an explicit rule like this if you intentionally want to block hubs:
+#
+# [[rules]]
+# name = "block all hubs"
+# action = "block"
+#
+# [rules.match]
+# is_hub = true
