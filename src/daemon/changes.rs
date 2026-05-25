@@ -5,7 +5,10 @@ use tracing::info;
 use super::state::DeviceKey;
 use crate::{
   device::DeviceState,
-  policy::{Action, Decision},
+  policy::{
+    Action,
+    Decision,
+  },
   sysfs::UsbDevice,
 };
 
@@ -18,45 +21,35 @@ pub(super) enum DeviceChangeKind {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct DeviceChangeEvent {
-  pub(super) kind: DeviceChangeKind,
-  pub(super) device: DeviceSummary,
-  pub(super) action: Action,
+  pub(super) kind:            DeviceChangeKind,
+  pub(super) device:          DeviceSummary,
+  pub(super) action:          Action,
   pub(super) previous_action: Option<Action>,
-  pub(super) reason: String,
-  pub(super) rule: Option<String>,
+  pub(super) reason:          String,
+  pub(super) rule:            Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct DeviceSummary {
-  id: u32,
-  port_path: String,
-  vendor_id: String,
-  product_id: String,
+  id:           u32,
+  port_path:    String,
+  vendor_id:    String,
+  product_id:   String,
   product_name: Option<String>,
-  serial: Option<String>,
-  is_hub: bool,
-}
-
-impl DeviceSummary {
-  fn product_name(&self) -> &str {
-    optional_str(self.product_name.as_deref())
-  }
-
-  fn serial(&self) -> &str {
-    optional_str(self.serial.as_deref())
-  }
+  serial:       Option<String>,
+  is_hub:       bool,
 }
 
 impl From<&UsbDevice> for DeviceSummary {
   fn from(device: &UsbDevice) -> Self {
     Self {
-      id: device.id,
-      port_path: device.port_path.clone(),
-      vendor_id: device.vendor_id.clone(),
-      product_id: device.product_id.clone(),
+      id:           device.id,
+      port_path:    device.port_path.clone(),
+      vendor_id:    device.vendor_id.clone(),
+      product_id:   device.product_id.clone(),
       product_name: device.product_name.clone(),
-      serial: device.serial.clone(),
-      is_hub: device.is_hub,
+      serial:       device.serial.clone(),
+      is_hub:       device.is_hub,
     }
   }
 }
@@ -130,8 +123,8 @@ pub(super) fn log_device_change(event: &DeviceChangeEvent) {
           port_path = %event.device.port_path,
           vendor_id = %event.device.vendor_id,
           product_id = %event.device.product_id,
-          product_name = event.device.product_name(),
-          serial = event.device.serial(),
+          product_name = event.device.product_name,
+          serial = event.device.serial,
           is_hub = event.device.is_hub,
           action,
           reason,
@@ -145,8 +138,8 @@ pub(super) fn log_device_change(event: &DeviceChangeEvent) {
           port_path = %event.device.port_path,
           vendor_id = %event.device.vendor_id,
           product_id = %event.device.product_id,
-          product_name = event.device.product_name(),
-          serial = event.device.serial(),
+          product_name = event.device.product_name,
+          serial = event.device.serial,
           is_hub = event.device.is_hub,
           last_action = action,
           reason,
@@ -160,8 +153,8 @@ pub(super) fn log_device_change(event: &DeviceChangeEvent) {
           port_path = %event.device.port_path,
           vendor_id = %event.device.vendor_id,
           product_id = %event.device.product_id,
-          product_name = event.device.product_name(),
-          serial = event.device.serial(),
+          product_name = event.device.product_name,
+          serial = event.device.serial,
           is_hub = event.device.is_hub,
           previous_action,
           action,
@@ -227,7 +220,7 @@ pub(super) fn log_manual_override(device: &UsbDevice, decision: &Decision) {
     action: decision.action,
     source: ExplicitDecisionSource::ManualOverride,
     reason: &decision.reason,
-    rule: optional_str(decision.rule.as_deref()),
+    rule:   optional_str(decision.rule.as_deref()),
   });
 }
 
@@ -244,8 +237,8 @@ pub(super) fn log_override_cleared(
       port_path = %summary.port_path,
       vendor_id = %summary.vendor_id,
       product_id = %summary.product_id,
-      product_name = summary.product_name(),
-      serial = summary.serial(),
+      product_name = summary.product_name,
+      serial = summary.serial,
       is_hub = summary.is_hub,
       previous_action,
       action = decision.action.as_str(),
@@ -272,7 +265,7 @@ struct ExplicitDecisionLog<'a> {
   action: Action,
   source: ExplicitDecisionSource,
   reason: &'a str,
-  rule: &'a str,
+  rule:   &'a str,
 }
 
 fn log_explicit_decision(log: &ExplicitDecisionLog<'_>) {
@@ -284,8 +277,8 @@ fn log_explicit_decision(log: &ExplicitDecisionLog<'_>) {
           port_path = %log.device.port_path,
           vendor_id = %log.device.vendor_id,
           product_id = %log.device.product_id,
-          product_name = log.device.product_name(),
-          serial = log.device.serial(),
+          product_name = log.device.product_name,
+          serial = log.device.serial,
           is_hub = log.device.is_hub,
           action = log.action.as_str(),
           source,
@@ -300,8 +293,8 @@ fn log_explicit_decision(log: &ExplicitDecisionLog<'_>) {
           port_path = %log.device.port_path,
           vendor_id = %log.device.vendor_id,
           product_id = %log.device.product_id,
-          product_name = log.device.product_name(),
-          serial = log.device.serial(),
+          product_name = log.device.product_name,
+          serial = log.device.serial,
           is_hub = log.device.is_hub,
           action = log.action.as_str(),
           source,
