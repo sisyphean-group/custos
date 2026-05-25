@@ -1,11 +1,33 @@
-# Custos
+<div align="center">
+  <h1 id="header">Custos</h1>
+  <p>A small and sleek USB authorization daemon.</p>
 
-Custos is a small USB authorization daemon and CLI. It is intentionally kept
-simple and does not aim to support every feature under the sun.
+![GitHub License](https://img.shields.io/github/license/sisyphean-group/custos)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/sisyphean-group/custos/.github%2Fworkflows%2Fbuild.yaml)
+
+</div>
+
+---
+
+> **custos** /`ˈkʊs.toːs`/
+> _noun (standard)_
+>
+> 1. A **guard**, **keeper**, or **watchman**; one who protects or preserves something or someone.
+
+---
+
+## Introduction
+
+Custos protects your machine from unauthorized USB devices. Use an explit policy list to block/allow devices based on their USB attributes. Custos' daemon monitors USB events and applies these policies in real time. It is intentionally kept as simple as possible in order to:
+
+- Keep the codebase small.
+- Be light on system resources.
+- Be easy to understand, audit, and contribute to.
 
 ## NixOS Module
 
-The module implementation lives at `nix/module.nix`.
+Custos provides a NixOS module to easily deploy it on NixOS systems.
+The module lives in [`nix/module.nix`](./nix/module.nix) and can be used to setup and confgiure the daemon and the policy list.
 
 ```nix
 { inputs, pkgs, ... }:
@@ -22,18 +44,31 @@ The module implementation lives at `nix/module.nix`.
     controlUsers = [ "alice" ];
 
     config = {
+      # Enforce the policies in the policy list.
       mode = "enforce";
+
+      # The path to the policy file. This is
+      # /etc/custos/policy.toml by default.
       policy_path = "/etc/custos/policy.toml";
+      # The path to the control socket used by
+      # the CLI to talk to the daemon. This is
+      # set to /run/custos/control.sock by default.
       socket_path = "/run/custos/control.sock";
+      # The root of the sysfs filesystem to interface with.
       sysfs_root = "/sys";
+      # Don't allow an empty policy file. Allowing this *can*
+      # cause lockouts by disallowing all usb devices.
       unsafe_allow_empty_policy = false;
       default_action = "block";
       controllers = {
+        # Block new USB devices by default.
         authorized_default = "none";
+        # Don't restore the controller state on shutdown. This means that if the daemon is stopped while some devices are blocked, they will remain blocked.
         restore_on_shutdown = false;
       };
     };
 
+    # A list of policies to apply.
     policy.rules = [
       {
         name = "built-in keyboard";
@@ -69,14 +104,14 @@ configured control group can run daemon-backed CLI commands without root.
 
 ### Module Options
 
-| Option                         | Default                      | Meaning                                                              |
-| ------------------------------ | ---------------------------- | -------------------------------------------------------------------- |
-| `services.custos.enable`       | `false`                      | Enable the daemon and generated files.                               |
-| `services.custos.package`      | flake package                | Package to run.                                                      |
-| `services.custos.config`       | daemon defaults              | Raw TOML attrset written to `/etc/custos/config.toml`.                |
-| `services.custos.policy`       | `{ default = "block"; ... }` | Raw TOML attrset written to `/etc/custos/policy.toml`.                |
-| `services.custos.group`        | `"custos"`                   | Group that owns the control socket directory.                        |
-| `services.custos.controlUsers` | `[ ]`                        | Users added to the control group.                                    |
+| Option                         | Default                      | Meaning                                                |
+| ------------------------------ | ---------------------------- | ------------------------------------------------------ |
+| `services.custos.enable`       | `false`                      | Enable the daemon and generated files.                 |
+| `services.custos.package`      | flake package                | Package to run.                                        |
+| `services.custos.config`       | daemon defaults              | Raw TOML attrset written to `/etc/custos/config.toml`. |
+| `services.custos.policy`       | `{ default = "block"; ... }` | Raw TOML attrset written to `/etc/custos/policy.toml`. |
+| `services.custos.group`        | `"custos"`                   | Group that owns the control socket directory.          |
+| `services.custos.controlUsers` | `[ ]`                        | Users added to the control group.                      |
 
 The module does not try to semantically validate policies at evaluation time.
 It only renders Nix attrsets to TOML; lockout checks and empty-matcher checks
